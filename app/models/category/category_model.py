@@ -6,7 +6,7 @@ from datetime import datetime,timezone
 from sqlalchemy import Enum as SqlEnum  
 import uuid
 from sqlalchemy.dialects.postgresql import UUID
-from app.base.untility import set_ordering,get_date_time_formatted,get_phnom_penh_time,get_phnom_penh_time_formatted
+from app.base.untility import set_ordering,get_phnom_penh_time,get_phnom_penh_time_formatted
 
 class Category(Base):
     __tablename__ = "category"
