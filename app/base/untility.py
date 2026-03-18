@@ -1,4 +1,3 @@
-# app/base/common.py
 import uuid
 import pytz
 from enum import Enum
@@ -13,16 +12,23 @@ from sqlalchemy.sql import text
 import bcrypt
 from app.base.database import get_db
 from zoneinfo import ZoneInfo
-from datetime import datetime, time
-from fastapi import Depends, HTTPException, Request
+from datetime import datetime, time,timedelta
+from fastapi import Depends, HTTPException, Request,status
 from fastapi.responses import JSONResponse
 from sqlalchemy import event
 from fastapi.responses import StreamingResponse
 from io import BytesIO
-from app.base.translate import get_translation, set_lang
+from jose import jwt,JWTError
 
 T = TypeVar("T")
+ACCESS_TOKEN_EXPIRES_MINUTES=30 * 24 * 60 # 3day
+REFRESH_TOKEN_EXPIRES_MINUTES=5 * 24 * 60  # 5 day
+REFRESH_TOKEN_ROTATION=True
+ALGORITHM = "HS256"
+SECRET_KEY='eyJhbGciO/iJIUzI1N!iIsInR5cCI6Ik/ss=pXVCJ9wertyuiasdfghjklzxcvbnm'
+from fastapi.security import OAuth2PasswordBearer,OAuth2PasswordRequestForm
 
+oauth2_schema = OAuth2PasswordBearer(tokenUrl="/smartquizs/auth/login")
 class AppSuccessResponse(BaseModel, Generic[T]):
     code: int = 200
     msg: str = "Success"
@@ -33,6 +39,17 @@ class AppSuccessResponse(BaseModel, Generic[T]):
         msg: Response message
         data: Response data
     """
+
+def get_date_time_formatted(dt: datetime) -> str:
+    """
+    Format a datetime object to 'Month Day Year : minute hour' 
+    """
+    return dt.strftime("%d %b %Y %I:%M %p")
+
+class Role(str,Enum):
+    admin = "admin"
+    user = "user"
+
 
 async def paginate_sql(
     db: AsyncSession,
@@ -115,7 +132,7 @@ def app_success_paginated(
         Dict formatted response ready to return as JSON.
     """
     if msg is None:
-        msg = get_translation("success")
+        msg = "success"
     response = {
         "code": code,
         "msg": msg,
@@ -152,7 +169,7 @@ def app_success(
         Dict formatted success response
     """
     if msg is None:
-        msg = get_translation("success")
+        msg = "success"
     return {
         "code": code,
         "msg": msg,
@@ -176,7 +193,7 @@ def app_error(
         Dict formatted error response
     """
     if msg is None:
-        msg = get_translation("fail")
+        msg = "fail"
     return {
         "code": code,
         "msg": msg,
@@ -200,7 +217,7 @@ def app_server_error(
         Dict formatted error response
     """
     if msg is None:
-        msg = get_translation("server_error")
+        msg ="server_error"
     return {
         "code": code,
         "msg": msg,
@@ -261,69 +278,81 @@ class ActiveStatus(str, Enum):
     """
     active = "active"
     inactive = "inactive"
-
-class GenderEnum(str, Enum):
-    """
-    get gender Male,  Female
-    """
-    Male = "Male"
-    Female = "Female"
-
-class IsResignEnum(str, Enum):
-    """
-    Resign have Yes, No
-    """
-    No = "No"   # active
-    Yes = "Yes" # resigned
     
-async def verify_token(
-    token: str = Query(...),
-    db: AsyncSession = Depends(get_db)
+def create_access_token(
+    data:dict,
+    expires_delta: Optional[timedelta] = None
 ):
-    result = await db.execute(
-        text("SELECT * FROM hr_employee WHERE app_token = :token"),
-        {"token": token.strip()}
-    )
-    employee = result.fetchone()
-    if employee is None:
-        raise AppException(code=400, msg=get_translation("invalid_token"))
-    return employee
+    """ 
+    Create a JWT access token
+    data: dick-> payload(user infor like id, username)
+    expires_delta: optional custom expireation timedelta
 
-async def tenant_verify_token(
-    token: str = Query(...),
-    db: AsyncSession = Depends(get_db)
-):
-    result = await db.execute(
-        text("SELECT * FROM tenant_admin WHERE app_token = :token"),
-        {"token": token.strip()}
-    )
-    employee = result.fetchone()
-    if employee is None:
-        raise AppException(code=400, msg=get_translation("invalid_token"))
-    return employee
+    """
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRES_MINUTES)
+    to_encode.update({"exp": expire}) # add expiration
+    encoded_jwt = jwt.encode(to_encode,SECRET_KEY,algorithm=ALGORITHM)
+    return encoded_jwt
 
-async def check_existing_record(
-    db: AsyncSession,
-    table_name: str,
-    id_value: Optional[int],
-    translate:str
+def create_refresh_token(
+    data:dict,
+    expire_delta: Optional[timedelta] = None
 ):
     """
-    Check if a record with the given ID exists and is active.
-    Returns:
-        None if valid, else app_error.
+    create a jwt refresh token
+    usually longer expiration than access token
+    
     """
-    if id_value is not None:
-        query = f"""
-            SELECT 1 FROM {table_name}
-            WHERE id = :id AND is_active = :active
-        """
-        params = {"id": id_value, "active": "active"}
-        result = await db.execute(text(query), params)
-        exists = result.scalar_one_or_none()
-        if exists is None:
-            return app_error(msg=get_translation(translate))
-    return None
+
+    to_encode = data.copy()
+    if expire_delta:
+        expire = datetime.utcnow() + expire_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=REFRESH_TOKEN_EXPIRES_MINUTES)
+    to_encode.update({"exp": expire})
+    encode_jwt = jwt.encode(to_encode,SECRET_KEY,algorithm=ALGORITHM)
+    return encode_jwt
+
+def verify_token(
+    token:str = Depends(oauth2_schema)
+):
+    try:
+        payload =jwt.decode(token,SECRET_KEY,algorithms=[ALGORITHM])
+        username: str = payload.get("username")
+        role: str = payload.get("role")
+        if username is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return {
+            "username": username,
+            "role": Role(role)
+        }
+    except JWTError:
+         raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+def require_admin(
+    current_user:dict = Depends(verify_token)
+):
+    if current_user["role"] != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admin can perform this action"
+        )
+    return current_user
+
+
+
 
 class AppException(HTTPException):
     def __init__(self, code: int, msg: str, status_code: int = 400):
@@ -351,139 +380,9 @@ def set_ordering(model):
             .values(ordering=target.id)
         )
 
-def export_file_response(file: BytesIO, filename: str, media_type: str) -> StreamingResponse:
-    """
-    Custom export response for Excel or PDF files.
-
-    :param file: BytesIO file content
-    :param filename: Name of the file (e.g., 'report.pdf', 'data.xlsx')
-    :param media_type: MIME type (e.g., 'application/pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    :return: StreamingResponse for download
-    """
-    file.seek(0) 
-    return StreamingResponse(
-        content=file,
-        media_type=media_type,
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"'
-        }
-    )
-
-EXCLUDED_PATHS = [
-    "/auths/login"
-] 
-async def protect_route(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Route protection to check user permissions.
-    """
-    current_path = request.url.path
-    if current_path in EXCLUDED_PATHS:
-        return 
-    token = request.query_params.get("token")
-    if not token:
-        raise AppException(code=400, msg=get_translation("app_token_required"))
-    employee = await verify_token(token=token, db=db)
-    user_id = employee.id
-    admin_check = await db.execute(text("""
-        SELECT 1
-        FROM permission_group_access pga
-        JOIN permission_group pg ON pga.group_id = pg.id
-        WHERE pga.uid = :uid AND pg.rules LIKE '%*%' AND pg.is_active = 'active' 
-    """), {"uid": user_id})
-    if admin_check.scalar() is not None:
-        return employee
-    result = await db.execute(text("""
-        SELECT r.route
-        FROM permission_group_access pga
-        JOIN permission_group pg ON pga.group_id = pg.id 
-        JOIN LATERAL unnest(string_to_array(pg.rules, ',')) AS rule_ids(rule_id_text) ON TRUE
-        JOIN permission_rule r ON r.id = rule_ids.rule_id_text::int
-        WHERE pga.uid = :uid AND rule_ids.rule_id_text ~ '^[0-9]+$' and pg.is_active = 'active' and r.is_active = 'active'
-    """), {"uid": user_id})
-    allowed_routes = [row[0] for row in result.fetchall()]
-    if current_path not in allowed_routes:
-        raise AppException(code=403, msg=get_translation("unautherized_access"))
-    return  employee
-
-EXCLUDED_PATHS_TENANT = [
-    "/auths/login",
-    "/auths/permission/index",
-    "/tenants/plan/index"
-
-] 
-async def tenant_protect_route(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Route protection to check user permissions.
-    """
-    current_path = request.url.path
-    if current_path in EXCLUDED_PATHS_TENANT:
-        return 
-    token = request.query_params.get("token")
-    if not token:
-        raise AppException(code=400, msg=get_translation("app_token_required"))
-    employee = await tenant_verify_token(token=token, db=db)
-    user_id = employee.id
-    admin_check = await db.execute(text("""
-        SELECT 1
-        FROM tenant_permission_group_access pga
-        JOIN tenant_permission_group pg ON pga.group_id = pg.id
-        WHERE pga.uid = :uid AND pg.rules LIKE '%*%' AND pg.is_active = 'active' 
-    """), {"uid": user_id})
-    if admin_check.scalar() is not None:
-        return employee
-    result = await db.execute(text("""
-        SELECT r.route
-        FROM tenant_permission_group_access pga
-        JOIN tenant_permission_group pg ON pga.group_id = pg.id 
-        JOIN LATERAL unnest(string_to_array(pg.rules, ',')) AS rule_ids(rule_id_text) ON TRUE
-        JOIN tenant_permission_rule r ON r.id = rule_ids.rule_id_text::int
-        WHERE pga.uid = :uid AND rule_ids.rule_id_text ~ '^[0-9]+$' and pg.is_active = 'active' and r.is_active = 'active'
-    """), {"uid": user_id})
-    allowed_routes = [row[0] for row in result.fetchall()]
-    if current_path not in allowed_routes:
-        raise AppException(code=403, msg=get_translation("unautherized_access"))
-    return  employee
-
-async def get_language(
-    lang: Optional[int] = None
-):
-    """"
-    Set the language index based on the query parameter.
-    Args:
-        lang: Language index (0 for English, 1 for Khmer, 2 for Chinese)
-    """
-    if lang is None:
-        return
-    index = lang 
-    if index not in [0, 1, 2]:
-        index = 0
-    set_lang(index)     
-    from fastapi import Request, Depends
-    
-def generate_uuid() -> uuid.UUID:
-    return uuid.uuid4()
-
-def to_utc_naive(dt: datetime) -> datetime:
-    phnom_penh_tz = pytz.timezone('Asia/Phnom_Penh')
-
-    if dt.tzinfo is None:
-        dt = phnom_penh_tz.localize(dt)
-    return dt.astimezone(pytz.UTC).replace(tzinfo=None)
-
-def end_of_day(dt: datetime) -> datetime:
-    return datetime.combine(dt.date(), time.max)
-
-def start_of_day(dt: datetime) -> datetime:
-    return datetime.combine(dt.date(), time.min)
-
-def get_date_time_formatted(dt: datetime) -> str:
-    """
-    Format a datetime object to 'Month Day Year : minute hour' 
-    """
-    return dt.strftime("%d %b %Y %I:%M %p")
+class QuestionType(str, Enum):
+    single_choice = "single_choice"   # One correct answer (Radio buttons)
+    multiple_choice = "multiple_choice" # Multiple correct answers (Checkboxes)
+    true_false = "true_false"
+    short_answer = "short_answer"    # Text input
+    matching = "matching"
