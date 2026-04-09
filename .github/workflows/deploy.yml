@@ -14,6 +14,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: 110.74.222.231
+          port: 2222
           username: root
           password: 12345
           key: ${{ secrets.SSH_PRIVATE_KEY }}
