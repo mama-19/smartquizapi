@@ -19,7 +19,7 @@ async def shutdown_event():
     schedule.shutdown()
 
 # Register the router
-app.include_router(auth_route)
+# app.include_router(auth_route)
 app.include_router(admin_router)
 app.include_router(user_router)
 # app.include_router(route.)

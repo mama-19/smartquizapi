@@ -17,7 +17,7 @@ jobs:
           username: root
           password: 12345
           script: |
-            cd /root/var/test_saas_sanbox/smartquizapi
-            git pull origin main
-            docker compose down
-            docker compose up -d --build
+            whoami
+            pwd
+            ls
+            docker ps
