@@ -1,0 +1,23 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Connect and Deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 192.168.102.22
+          username: root
+          password: 12345
+          script: |
+            cd /root/var/test_saas_sanbox/smartquizapi
+            git pull origin main
+            docker compose down
+            docker compose up -d --build
