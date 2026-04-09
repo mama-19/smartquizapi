@@ -13,9 +13,10 @@ jobs:
       - name: Connect and Deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: 192.168.102.22
+          host: 110.74.222.231
           username: root
           password: 12345
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             whoami
             pwd
