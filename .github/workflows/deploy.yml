@@ -1,10 +1,23 @@
-#!/bin/bash
+name: Deploy SmartQuiz API
 
-echo "📥 Pull latest code (simulate)"
-# git pull origin main  (skip if local)
+on:
+  push:
+    branches:
+      - main
 
-echo "🐳 Restart containers"
-docker compose down
-docker compose up -d --build
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
 
-echo "✅ Done"
+    steps:
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: 192.168.102.25
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /var/smartquiz_saas_sandbox/smartquizapi
+            git pull origin main
+            docker compose down
+            docker compose up -d --build
