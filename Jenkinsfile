@@ -5,28 +5,59 @@ pipeline {
         githubPush()
     }
 
+    environment {
+        APP_NAME = "smartquizapi"
+    }
+
     stages {
-        stage('GitHub Link Test') {
+
+        stage('Checkout Code') {
             steps {
-                echo "🚀 Jenkins successfully received the signal from GitHub!"
-                echo "Build Number: ${env.BUILD_NUMBER}"
-                echo "Branch: ${env.BRANCH_NAME}"
+                checkout scm
             }
         }
-        
-        stage('Verify Files') {
+
+        stage('Show Workspace') {
             steps {
-                echo "Checking if code was actually pulled..."
+                echo "📁 Checking project files..."
                 sh 'ls -la'
+            }
+        }
+
+        stage('Stop Old Containers') {
+            steps {
+                echo "🛑 Stopping old containers..."
+                sh 'docker compose down || true'
+            }
+        }
+
+        stage('Build & Start Containers') {
+            steps {
+                echo "🐳 Building and starting Docker containers..."
+                sh 'docker compose up -d --build'
+            }
+        }
+
+        stage('Verify Running Containers') {
+            steps {
+                echo "✅ Checking running containers..."
+                sh 'docker ps'
             }
         }
     }
 
     post {
         success {
-            echo "✅ Connection Verified: GitHub is talking to Jenkins."
+            echo "🎉 Deployment successful! App is running."
         }
+
+        failure {
+            echo "❌ Deployment failed. Check logs."
+            sh 'docker compose logs || true'
+        }
+
         always {
+            echo "🧹 Cleaning workspace..."
             cleanWs()
         }
     }
