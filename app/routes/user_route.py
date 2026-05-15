@@ -31,14 +31,14 @@ async def list_category_route(
     return await list_category(db, name, page, page_size)
 
 # Quiz list
-@user_router.get("/quizs/lists")
-async def list_quiz_route(
-    db: AsyncSession = Depends(get_db),
-    title: Optional[str] = None,
-    page: int = 1,
-    page_size: int = 10,
-):
-    return await list_quiz(db, title, page, page_size)
+# @user_router.get("/quizs/lists")
+# async def list_quiz_route(
+#     db: AsyncSession = Depends(get_db),
+#     title: Optional[str] = None,
+#     page: int = 1,
+#     page_size: int = 10,
+# ):
+#     return await list_quiz(db, title, page, page_size)
 
 # # Question list
 # @user_router.get("/question/lists")
