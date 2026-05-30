@@ -3,8 +3,13 @@ pipeline {
     stages {
         stage('Clone Repository') {
             steps {
-                cleanWs()        // 👈 clean workspace before cloning
+                cleanWs()
                 checkout scm
+            }
+        }
+        stage('Create Network') {
+            steps {
+                sh 'docker network create traefik-net || true'  // 👈 create if not exists
             }
         }
         stage('Build Docker Image') {
