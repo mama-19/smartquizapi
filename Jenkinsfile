@@ -28,5 +28,12 @@ pipeline {
                 sh 'docker compose exec -T smartquiz_service pytest || true'
             }
         }
+         stage('docker logs') {
+            steps {
+                // This builds the new image AND restarts only the updated smartquiz_service container.
+                // Traefik and Postgres will keep running uninterrupted.
+                sh 'docker compose logs'
+            }
+        }
     }
 }
