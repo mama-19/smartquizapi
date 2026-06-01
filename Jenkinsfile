@@ -6,9 +6,10 @@ pipeline {
             steps {
                 // Wipe the workspace clean to prevent caching issues
                 cleanWs() 
+                checkout scm
                 
                 // Explicitly pull your repository to avoid the "not a git directory" bug
-                git branch: 'main', url: 'https://github.com/mama-19/smartquizapi.git'
+                // git branch: 'main', url: 'https://github.com/mama-19/smartquizapi.git'
             }
         }
 
