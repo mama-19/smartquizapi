@@ -19,8 +19,10 @@ services:
   # --- APPLICATION LAYER ---
   smartquiz_service:
     build: .
+    ports:
+      - "8005:8000"
     expose:
-      - "8000"
+      - "8005"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.smartquizs.rule=PathPrefix(`/smartquizs`)"
