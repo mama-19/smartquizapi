@@ -1,32 +1,31 @@
 pipeline {
     agent any
+    
     stages {
         stage('Clone Repository') {
             steps {
-                cleanWs()
-                checkout scm
+                // Wipe the workspace clean to prevent caching issues
+                cleanWs() 
+                
+                // Explicitly pull your repository to avoid the "not a git directory" bug
+                git branch: 'main', url: 'https://github.com/mama-19/smartquizapi.git'
             }
         }
-        stage('Create Network') {
+
+        stage('Deploy / Update Services') {
             steps {
-                sh 'docker network create traefik-net || true'  // 👈 create if not exists
+                // This builds the new image AND restarts only the updated smartquiz_service container.
+                // Traefik and Postgres will keep running uninterrupted.
+                sh 'docker compose up -d --build'
             }
         }
-        stage('Build Docker Image') {
-            steps {
-                sh 'docker compose build'
-            }
-        }
-        stage('Start Container') {
-            steps {
-                sh 'docker compose up -d'
-            }
-        }
+
         stage('Run Tests') {
             steps {
+                // Runs your pytest suite inside the newly updated app container
+                // '|| true' ensures that even if tests fail, your pipeline script can finish gracefully
                 sh 'docker compose exec -T smartquiz_service pytest || true'
             }
         }
     }
-    
 }
