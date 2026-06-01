@@ -1,21 +1,60 @@
+# version: '3.8'
+
 services:
-  smartquiz_service:
-    build: .
+  # --- REVERSE PROXY LAYER ---
+  reverse-proxy:
+    image: traefik:v3.3
+    command:
+      - --api.insecure=true
+      - --providers.docker
+      - --entrypoints.web.address=:80
     ports:
-      - "8005:8000"
-    expose:
-      - "8005"
-    labels:
-      - "traefik.http.routers.smartquizs.rule=PathPrefix(`/smartquizs`)"
-      - "traefik.http.services.smartquizs.loadbalancer.server.port=8000"
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - traefik-net
+
+  # --- APPLICATION LAYER ---
+  smartquiz_service:
+    build: .
+    expose:
+      - "8000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.smartquizs.rule=PathPrefix(`/smartquizs`)"
+      - "traefik.http.services.smartquizs.loadbalancer.server.port=8000"
     volumes:
       - .:/app
-    
+    networks:
+      - traefik-net
+    depends_on:
+      db:
+        condition: service_healthy
 
-
+  # --- DATABASE LAYER ---
+  db:
+    image: postgres:17
+    ports:
+      - "5432:5432" # Keeps port open to your host machine (e.g., for PgAdmin or DBeaver)
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=passw0rd
+      - POSTGRES_DB=db_smartquiz
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - traefik-net
 
 networks:
   traefik-net:
-    external: true
+    driver: bridge
+
+volumes:
+  postgres_data:
