@@ -1,84 +1,21 @@
-version: '3.8'
-
 services:
-  # --- REVERSE PROXY (TRAEFIK) ---
-  reverse-proxy:
-    image: traefik:v3.3
-    command:
-      - --api.insecure=true
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --entrypoints.web.address=:80
-    ports:
-      - "80:80"
-      - "8083:8080"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - traefik-net
-
-  # --- APPLICATION (FASTAPI / SMARTQUIZ) ---
   smartquiz_service:
     build: .
-
+    ports:
+      - "8005:8000"
     expose:
-      - "8000"
-
+      - "8005"
     labels:
-      - "traefik.enable=true"
-
-      # Route rule
       - "traefik.http.routers.smartquizs.rule=PathPrefix(`/smartquizs`)"
-
-      # IMPORTANT: tell Traefik entrypoint
-      - "traefik.http.routers.smartquizs.entrypoints=web"
-
-      # FIX: remove /smartquizs before sending to app
-      - "traefik.http.middlewares.smartquizs-strip.stripprefix.prefixes=/smartquizs"
-      - "traefik.http.routers.smartquizs.middlewares=smartquizs-strip"
-
-      # App port inside container
       - "traefik.http.services.smartquizs.loadbalancer.server.port=8000"
-
+    networks:
+      - traefik-net
     volumes:
       - .:/app
+    
 
-    networks:
-      - traefik-net
 
-    depends_on:
-      db:
-        condition: service_healthy
 
-  # --- DATABASE (POSTGRES) ---
-  db:
-    image: postgres:17
-
-    ports:
-      - "5432:5432"
-
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: passw0rd
-      POSTGRES_DB: db_smartquiz
-
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-    networks:
-      - traefik-net
-
-# --- NETWORK ---
 networks:
   traefik-net:
-    driver: bridge
-
-# --- VOLUME ---
-volumes:
-  postgres_data:
+    external: true
