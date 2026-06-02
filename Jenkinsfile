@@ -4,36 +4,52 @@ pipeline {
     stages {
         stage('Clone Repository') {
             steps {
-                // Wipe the workspace clean to prevent caching issues
                 cleanWs() 
                 checkout scm
-                
-                // Explicitly pull your repository to avoid the "not a git directory" bug
-                // git branch: 'main', url: 'https://github.com/mama-19/smartquizapi.git'
+                // Verify code is here
+                sh 'ls -la ${WORKSPACE}'
             }
         }
 
         stage('Deploy / Update Services') {
             steps {
-                // This builds the new image AND restarts only the updated smartquiz_service container.
-                // Traefik and Postgres will keep running uninterrupted.
-                sh 'docker compose up -d --build'
+                // Must cd into WORKSPACE so docker-compose finds your code
+                sh '''
+                    cd ${WORKSPACE}
+                    ls -la                          
+                    docker compose down
+                    docker compose build --no-cache
+                    docker compose up -d
+                '''
+            }
+        }
+
+        stage('Verify Container') {
+            steps {
+                sh '''
+                    docker ps | grep smartquiz
+                    docker compose logs --tail=50
+                '''
             }
         }
 
         stage('Run Tests') {
             steps {
-                // Runs your pytest suite inside the newly updated app container
-                // '|| true' ensures that even if tests fail, your pipeline script can finish gracefully
-                sh 'docker compose exec -T smartquiz_service pytest || true'
+                sh '''
+                    cd ${WORKSPACE}
+                    docker compose exec -T smartquiz_service pytest || true
+                '''
             }
         }
-         stage('docker logs') {
-            steps {
-                // This builds the new image AND restarts only the updated smartquiz_service container.
-                // Traefik and Postgres will keep running uninterrupted.
-                sh 'docker compose logs'
-            }
+    }
+
+    post {
+        success {
+            echo '✅ Deployed successfully!'
+        }
+        failure {
+            sh 'cd ${WORKSPACE} && docker compose logs --tail=100'
+            echo '❌ Deployment failed!'
         }
     }
 }
