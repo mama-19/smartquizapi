@@ -1,7 +1,14 @@
-stage('Clone Repository') {
-    steps {
-        cleanWs()
-        checkout scm   // ← must come AFTER cleanWs
-        sh 'ls -la'
+pipeline {
+    agent any
+
+    stages {
+        stage('Clone Repository') {
+            steps {
+                cleanWs()
+                checkout scm
+                echo '✅ Clone successful!'
+                sh 'ls -la'
+            }
+        }
     }
 }
