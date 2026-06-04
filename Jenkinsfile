@@ -48,11 +48,5 @@ pipeline {
                 sh 'docker compose exec -T smartquiz_service pytest || true'
             }
         }
-
-        stage('Logs') {
-            steps {
-                sh 'docker compose logs'
-            }
-        }
     }
 }
