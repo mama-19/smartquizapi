@@ -20,8 +20,8 @@ async def shutdown_event():
 
 # Register the router
 app.include_router(auth_route)
-app.include_router(admin_router)
-app.include_router(user_router)
+# app.include_router(admin_router)
+# app.include_router(user_router)
 # app.include_router(route.)
 # app.include_router(route.router)
 app.add_exception_handler(AppException, app_exception_handler)
