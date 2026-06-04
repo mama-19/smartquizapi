@@ -20,6 +20,12 @@ from fastapi.responses import StreamingResponse
 from io import BytesIO
 from jose import jwt,JWTError
 
+from app.base.config import settings
+from cryptography.fernet import Fernet
+
+fernet = Fernet(settings.FERNET_KEY.encode())
+
+
 T = TypeVar("T")
 ACCESS_TOKEN_EXPIRES_MINUTES=30 * 24 * 60 # 3day
 REFRESH_TOKEN_EXPIRES_MINUTES=5 * 24 * 60  # 5 day
