@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         IMAGE_NAME = "youmara/smartquiz"
-        TAG = "latest"
+        TAG = "v1"
     }
 
     stages {
