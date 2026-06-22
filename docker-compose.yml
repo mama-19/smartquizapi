@@ -2,9 +2,9 @@ services:
   smartquiz_service:
     build: .
     ports:
-      - "8006:8000"
+      - "8007:8000"
     expose:
-      - "8006"
+      - "8007"
     labels:
       - "traefik.http.routers.smartquizs.rule=PathPrefix(`/smartquizs`)"
       - "traefik.http.services.smartquizs.loadbalancer.server.port=8000"
